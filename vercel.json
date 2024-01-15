@@ -1,11 +1,15 @@
 {
-  "functions": {
-    "api/main": {
-      "runtime": "vercel-python@0.24.0",
-      "includeFiles": ["data.json", ".env", "keep_alive.py", "main.py", "requirements.txt"]
-    }
-  },
+  "version": 2,
+  "builds": [
+      {
+          "src": "*.py",
+          "use": "@vercel/python"
+      }
+  ],
   "routes": [
-    { "handle": "filesystem" }
+      {
+          "src": "(.*)",
+          "dest": "main.py"
+      }
   ]
 }
