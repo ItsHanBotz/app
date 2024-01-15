@@ -1,44 +1,17 @@
-from fastapi import FastAPI, Request, File, UploadFile, HTTPException
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import StreamingResponse
-from io import BytesIO
-import os
-import json
 from datetime import datetime
+import json
+import os
+import io
 import pytz
 import matplotlib.pyplot as plt
+from io import BytesIO
 
 app = FastAPI()
 
 data_file_path = "data.json"
-
-@app.get("/update_data")
-async def update_data_api(number1: int, number2: int, number3: int):
-    try:
-        existing_data = load_data()
-
-        if 'dates' not in existing_data:
-            existing_data['dates'] = []
-        if 'values' not in existing_data:
-            existing_data['values'] = []
-
-        current_date = datetime.now(pytz.timezone(os.getenv("TIMEZONE")))
-        values = [number1, number2, number3]
-        existing_data['dates'].append(current_date)
-        existing_data['values'].append(values)
-
-        current_max_value = max(max(existing_data['values'], default=0))
-        current_ylim = max(current_max_value + 150, 4000)
-
-        # Generate line chart
-        chart_data = generate_line_chart(existing_data, current_ylim)
-
-        # Save data
-        save_data(existing_data)
-
-        return StreamingResponse(io.BytesIO(chart_data), media_type="image/png")
-
-    except Exception as e:
-        return {"error": str(e)}
+timezone = 'Asia/Jakarta'
 
 def load_data():
     try:
@@ -46,8 +19,8 @@ def load_data():
             with open(data_file_path, 'r') as file:
                 data = json.load(file)
                 if 'dates' in data and isinstance(data['dates'][0], str):
-                    data['dates'] = [datetime.strptime(date, '%y-%m-%d\n%H:%M').replace(tzinfo=pytz.utc).astimezone(pytz.timezone(os.getenv("TIMEZONE"))) for date in data['dates']]
-            return data
+                    data['dates'] = [datetime.strptime(date, '%y-%m-%d\n%H:%M').replace(tzinfo=pytz.utc).astimezone(pytz.timezone(timezone)) for date in data['dates']]
+                return data
         return {'dates': [], 'values': []}
     except json.JSONDecodeError:
         return {'dates': [], 'values': []}
@@ -87,4 +60,36 @@ def generate_line_chart(data, ylim):
     plt.close(fig)
 
     return image_stream
-  
+
+@app.get("/update_data")
+async def update_data_api(
+    number1: int = Query(..., description="Value for number1"),
+    number2: int = Query(..., description="Value for number2"),
+    number3: int = Query(..., description="Value for number3"),
+):
+    try:
+        existing_data = load_data()
+
+        if 'dates' not in existing_data:
+            existing_data['dates'] = []
+        if 'values' not in existing_data:
+            existing_data['values'] = []
+
+        current_date = datetime.now(pytz.timezone(timezone))
+        values = [number1, number2, number3]
+        existing_data['dates'].append(current_date)
+        existing_data['values'].append(values)
+
+        current_max_value = max(max(existing_data['values'], default=0))
+        current_ylim = max(current_max_value + 150, 4000)
+
+        # Generate line chart
+        chart_data = generate_line_chart(existing_data, current_ylim)
+
+        # Save data
+        save_data(existing_data)
+
+        return StreamingResponse(io.BytesIO(chart_data.read()), media_type="image/png")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
